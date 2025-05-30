@@ -1,0 +1,42 @@
+Dify API 测试工具 - 快速使用指南
+================================
+
+【立即使用】
+1. 直接双击打开 dify-api-tester-standalone.html 文件
+2. 在顶部输入您的 API Key 和 Base URL
+3. 从左侧选择要测试的 API
+4. 点击"发送请求"
+
+【获取 API Key】
+1. 登录您的 Dify 账号
+2. 进入应用管理页面
+3. 点击"API 访问"
+4. 创建或复制 API Key
+
+【Base URL 配置】
+- Dify Cloud: https://api.dify.ai/v1
+- 自托管版本: http://您的服务器地址/v1
+
+【知识库 API 测试流程】
+1. 先创建知识库（创建知识库 API）
+2. 记录返回的 dataset_id
+3. 使用 dataset_id 创建文档
+4. 测试文档分段管理
+5. 测试知识库检索功能
+
+【路径参数说明】
+如果 API 路径包含 :dataset_id 等参数，
+请在请求体 JSON 中添加对应字段：
+{
+  "dataset_id": "您的知识库ID",
+  "其他参数": "..."
+}
+
+【常见问题】
+Q: 遇到跨域错误怎么办？
+A: 确保您的 Dify 服务器配置了正确的 CORS 策略
+
+Q: 如何测试流式响应？
+A: 将 response_mode 设置为 "streaming"
+
+祝您测试愉快！ 
