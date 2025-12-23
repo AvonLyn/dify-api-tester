@@ -243,9 +243,9 @@
                         description: '使用文本内容创建新文档'
                     },
                     { 
-                        id: 'create-document-file', 
-                        name: '通过文件创建文档', 
-                        path: '/datasets/:dataset_id/document/create-by-file',
+                        id: 'create-document-file',
+                        name: '通过文件创建文档',
+                        path: '/datasets/:dataset_id/document/create_by_file',
                         method: 'POST',
                         description: '上传文件创建新文档'
                     },
@@ -257,9 +257,9 @@
                         description: '使用文本更新已有文档'
                     },
                     { 
-                        id: 'update-document-file', 
-                        name: '更新文档(文件)', 
-                        path: '/datasets/:dataset_id/documents/:document_id/update-by-file',
+                        id: 'update-document-file',
+                        name: '更新文档(文件)',
+                        path: '/datasets/:dataset_id/documents/:document_id/update_by_file',
                         method: 'POST',
                         description: '使用文件更新已有文档'
                     },
@@ -278,11 +278,11 @@
                         description: '删除指定文档'
                     },
                     { 
-                        id: 'document-status', 
-                        name: '获取文档嵌入状态', 
-                        path: '/datasets/:dataset_id/documents/:batch/indexing-status',
+                        id: 'document-status',
+                        name: '获取文档嵌入状态',
+                        path: '/datasets/:dataset_id/document/indexing-status',
                         method: 'GET',
-                        description: '查询文档处理进度'
+                        description: '查询文档处理进度（使用 batch 作为查询参数）'
                     },
                     { 
                         id: 'add-segments', 
@@ -423,11 +423,18 @@
                         return {
                             query: "测试查询",
                             retrieval_model: {
-                                search_method: "keyword_search",
+                                search_method: "hybrid_search",
                                 reranking_enable: false,
                                 top_k: 5,
-                                score_threshold_enabled: false
+                                score_threshold_enabled: false,
+                                score_threshold: 0
                             }
+                        };
+
+                    case 'document-status':
+                        return {
+                            dataset_id: "",
+                            batch: ""
                         };
                     
                     case 'completion-messages':
@@ -451,20 +458,29 @@
                 }
             };
 
+            const getPathParamNames = (api) => api.path.match(/:(\w+)/g)?.map(param => param.substring(1)) || [];
+
             // 构建请求 URL
-            const buildRequestUrl = (api) => {
+            const buildRequestUrl = (api, includeQuery = false) => {
                 let url = config.baseUrl + api.path;
-                
-                // 替换路径参数
-                const pathParams = api.path.match(/:(\w+)/g);
-                if (pathParams) {
-                    pathParams.forEach(param => {
-                        const paramName = param.substring(1);
-                        const value = requestData[paramName] || '';
-                        url = url.replace(param, value);
-                    });
+
+                const pathParamNames = getPathParamNames(api);
+                pathParamNames.forEach(paramName => {
+                    const value = requestData[paramName] || '';
+                    url = url.replace(`:${paramName}`, encodeURIComponent(value));
+                });
+
+                if (includeQuery && api.method === 'GET') {
+                    const queryParams = Object.entries(requestData || {})
+                        .filter(([key, value]) => !pathParamNames.includes(key) && value !== undefined && value !== '')
+                        .map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)]);
+
+                    if (queryParams.length) {
+                        const searchParams = new URLSearchParams(queryParams);
+                        url += `${url.includes('?') ? '&' : '?'}${searchParams.toString()}`;
+                    }
                 }
-                
+
                 return url;
             };
 
@@ -483,8 +499,9 @@
                 setLoading(true);
                 setResponse(null);
                 setStreamingData('');
-                
-                const url = buildRequestUrl(selectedApi);
+
+                const url = buildRequestUrl(selectedApi, true);
+                const pathParamNames = getPathParamNames(selectedApi);
                 const headers = {
                     'Authorization': `Bearer ${config.apiKey}`,
                     'Content-Type': 'application/json'
@@ -539,12 +556,20 @@
                         // 处理普通请求
                         let axiosConfig = {
                             method: selectedApi.method,
-                            url: url,
+                            url: buildRequestUrl(selectedApi),
                             headers: headers
                         };
-                        
+
                         if (selectedApi.method !== 'GET') {
                             axiosConfig.data = requestData;
+                        } else {
+                            const queryParams = Object.fromEntries(
+                                Object.entries(requestData || {}).filter(([key, value]) => !pathParamNames.includes(key) && value !== undefined && value !== '')
+                            );
+
+                            if (Object.keys(queryParams).length) {
+                                axiosConfig.params = queryParams;
+                            }
                         }
                         
                         const result = await axios(axiosConfig);
@@ -622,7 +647,7 @@
                     <Card title="请求参数" className="request-section">
                         <Form layout="vertical">
                             <Form.Item label="请求 URL">
-                                <Input value={buildRequestUrl(selectedApi)} disabled />
+                                <Input value={buildRequestUrl(selectedApi, true)} disabled />
                             </Form.Item>
                             
                             <Form.Item label="请求方法">
